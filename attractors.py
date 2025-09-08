@@ -25,7 +25,8 @@ class RingAttractor(nn.Module):
         Q(s,a) = β * tanh((1/τ) * Φθ(st)^T * V + h(v)^T * U)
     
     Where:
-        - V(s): Fixed input-to-hidden connections preserving ring topology
+        - V(s): Fixed input
+        -to-hidden connections preserving ring topology
         - U(v): Learnable hidden-to-hidden connections for action relationships
         - τ: Time integration constant
         - β: Scaling factor preventing tanh saturation
@@ -148,6 +149,7 @@ class MultiRingAttractor(nn.Module):
     Args:
         input_size (int): Size of input feature vector
         output_size (int): Number of neurons in each ring attractor
+        output_dim (int): Final output dimension after processing
         num_rings (int): Number of coupled rings
         trainable_structure (bool): Whether to use trainable connectivity
         connectivity_strength (float): Strength of synaptic connections
@@ -160,7 +162,8 @@ class MultiRingAttractor(nn.Module):
     def __init__(
         self, 
         input_size: int, 
-        output_size: int,
+        ring_size: int,
+        output_dim: int,
         num_rings: int = 3,
         trainable_structure: bool = True,
         connectivity_strength: float = 0.1, 
@@ -173,7 +176,8 @@ class MultiRingAttractor(nn.Module):
         
         # Store hyperparameters
         self.input_size = input_size
-        self.output_size = output_size
+        self.ring_size = ring_size
+        self.output_dim = output_dim
         self.num_rings = num_rings
         self.connectivity_strength = connectivity_strength
         self.lambda_decay = lambda_decay
@@ -185,15 +189,18 @@ class MultiRingAttractor(nn.Module):
         
         # Initialize RNN for multiple rings
         total_input_size = input_size * num_rings
-        total_output_size = output_size * num_rings
+        total_output_size = ring_size * num_rings
         self.rnn = nn.RNN(total_input_size, total_output_size, bias=False, batch_first=True)
         
         # Create connectivity matrices
         if not trainable_structure:
             self._initialize_multi_ring_connectivity()
         
+        # Final output layer to map from ring outputs to desired output dimension
+        self.output_layer = nn.Linear(total_output_size, output_dim)
+        
         logger.debug(f"Initialized MultiRingAttractor: {num_rings} rings, "
-                    f"{output_size} neurons each")
+                    f"{ring_size} neurons each, final output dim: {output_dim}")
     
     def _initialize_multi_ring_connectivity(self) -> None:
         """Initialize connectivity matrices for multi-ring architecture."""
@@ -299,7 +306,7 @@ class MultiRingAttractor(nn.Module):
             x (torch.Tensor): Input tensor representing state
             
         Returns:
-            torch.Tensor: Output after multi-ring attractor dynamics
+            torch.Tensor: Output mapped to output_dim
         """
         # Scale input by learnable temporal integration constant
         x_scaled = (1.0 / self.tau) * x
@@ -308,7 +315,12 @@ class MultiRingAttractor(nn.Module):
         ring_output, _ = self.rnn(x_scaled)
         
         # Apply scaling
-        return self.beta * ring_output
+        scaled_output = self.beta * ring_output
+        
+        # Map to final output dimension
+        final_output = self.output_layer(scaled_output)
+        
+        return final_output
 
 
 class RingAttractorConfig:

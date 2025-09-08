@@ -5,16 +5,12 @@ This guide explains how to use the modular Ring Attractor system with different 
 ## 📁 Project Structure
 
 ```
-ring_attractor/
-├── core/
-│   └── attractors.py          # Core Ring Attractor implementations
-├── layers/
-│   └── control_layers.py      # Control-specific layers
-├── adapters/
-│   └── policy_wrappers.py     # Framework integration wrappers
-├── utils/
-│   └── model_manager.py       # Model saving/loading utilities
-└── __init__.py
+ring_attractor/src/
+├── attractors.py          # Core Ring Attractor implementations
+├── control_layers.py      # Control-specific layers
+├── policy_wrappers.py     # Framework integration wrappers
+├── model_manager.py       # Model saving/loading utilities
+
 ```
 
 ## 🚀 Quick Start
@@ -27,7 +23,7 @@ from stable_baselines3 import DDPG
 from ring_attractor.adapters.policy_wrappers import create_ddpg_ring_attractor
 
 # Create base environment and model
-env = gym.make("Pendulum-v1")
+env = gym.make("PyFlyt/QuadX-Hover-v3")
 base_model = DDPG("MlpPolicy", env, verbose=1)
 
 # Convert to Ring Attractor model using preset configuration
@@ -73,7 +69,7 @@ ra_model = create_ring_attractor_model(
 
 ## 🏗️ Core Components
 
-### 1. Core Attractors (`ring_attractor/core/attractors.py`)
+### 1. Core Attractors (`ring_attractor/src/attractors.py`)
 
 This module contains the fundamental Ring Attractor implementations:
 
@@ -136,7 +132,7 @@ config_dict = config.to_dict()
 loaded_config = RingAttractorConfig.from_dict(config_dict)
 ```
 
-### 2. Control Layers (`ring_attractor/layers/control_layers.py`)
+### 2. Control Layers (`ring_attractor/src/control_layers.py`)
 
 Specialized layers for control tasks:
 
@@ -265,7 +261,7 @@ wrapped_model = wrapper.wrap_policy(base_model, layer_config)
 
 ## 💾 Model Management
 
-### 4. Model Manager (`ring_attractor/utils/model_manager.py`)
+### 4. Model Manager (`ring_attractor/src/model_manager.py`)
 
 Utilities for saving and loading models:
 
@@ -333,7 +329,7 @@ registry = ModelRegistry()
 registry.register_factory(
     name="quadrotor_ddpg",
     factory_fn=lambda: create_ddpg_ring_attractor(
-        DDPG("MlpPolicy", gym.make("QuadrotorEnv-v1")),
+        DDPG("MlpPolicy", gym.make("PyFlyt/QuadX-Hover-v2")),
         preset_config="quadrotor"
     ),
     description="DDPG with quadrotor ring attractors"
@@ -362,21 +358,6 @@ config = get_quadrotor_config()
 # }
 ```
 
-#### Drone Navigation Configuration
-```python
-from ring_attractor.layers.control_layers import get_drone_navigation_config
-
-config = get_drone_navigation_config()
-# For forward/right/up/yaw control
-```
-
-#### Robotic Arm Configuration
-```python
-from ring_attractor.layers.control_layers import get_robotic_arm_config
-
-config = get_robotic_arm_config()
-# For multi-joint robotic arm control
-```
 
 ## 🔧 Advanced Usage
 

@@ -10,7 +10,7 @@ import torch.nn as nn
 from typing import List, Optional
 import logging
 
-from src.utils.attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
+from attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +80,8 @@ class MultiAxisRingAttractorLayer(BaseControlLayer):
     """
     Multi-axis Ring Attractor layer for complex control tasks.
     
-    Uses separate ring attractors for different control axes (e.g., roll, yaw, pitch)
-    plus linear layers for other controls (e.g., thrust).
+    Uses separate ring attractors for different control axes Only supporting (roll, yaw, pitch, thrust)
+    This should not be good as Coupled Ring Attractor
     
     Args:
         input_dim (int): Input feature dimension

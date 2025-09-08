@@ -35,7 +35,7 @@ from pyflyt_sac_waypoints import PyFlytRingAttractorTrainer
 
 # Create trainer with default Ring Attractor configuration
 trainer = PyFlytRingAttractorTrainer(
-    env_id="PyFlyt/QuadX-Waypoints-v2",
+    env_id="PyFlyt/QuadX-Waypoints-v4",
     save_dir="./my_models"
 )
 

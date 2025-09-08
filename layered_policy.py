@@ -11,8 +11,8 @@ from typing import List, Dict, Any, Optional, Union, Tuple
 import logging
 from abc import ABC, abstractmethod
 
-from .attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
-from .control_layers import MultiAxisRingAttractorLayer
+from attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
+from control_layers import MultiAxisRingAttractorLayer
 
 logger = logging.getLogger(__name__)
 

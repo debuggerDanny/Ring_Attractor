@@ -1,0 +1,2210 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="2" failures="62" skipped="1" tests="91" time="3.716" timestamp="2025-09-08T16:51:07.238283+01:00" hostname="DESKTOP-3514JOC"><testcase classname="tests.integration.test_end_to_end.TestCompleteWorkflow" name="test_quadrotor_control_workflow" time="0.004"><failure message="AttributeError: 'MockModel' object has no attribute 'actor'">self = &lt;tests.integration.test_end_to_end.TestCompleteWorkflow object at 0x000002DBA1AE88B0&gt;
+
+    def test_quadrotor_control_workflow(self):
+        """Test complete quadrotor control workflow"""
+    
+        # Step 1: Create Ring Attractor configuration for quadrotor
+        quadrotor_config = RingAttractorConfig(
+            num_excitatory=16,
+            tau=8.0,
+            beta=12.0,
+            lambda_decay=0.8,
+            trainable_structure=True,
+            connectivity_strength=0.1,
+            cross_coupling_factor=0.05
+        )
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],  # Spatial control
+            'config': quadrotor_config
+        }
+    
+        # Step 2: Create base model and integrate Ring Attractor
+        base_model = MockModel()
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_end_to_end.py:131: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1EC6DA0&gt;
+model = &lt;tests.integration.test_end_to_end.MockModel object at 0x000002DBA1AE8A30&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1E6B670&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_sac_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap SAC policy (stochastic)."""
+        # For SAC, we need to modify both mu and log_std networks
+&gt;       existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+E       AttributeError: 'MockModel' object has no attribute 'actor'
+
+policy_warp.py:136: AttributeError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestCompleteWorkflow" name="test_model_development_cycle" time="0.002"><failure message="ValueError: Missing required key in layer_config: control_axes">self = &lt;tests.integration.test_end_to_end.TestCompleteWorkflow object at 0x000002DBA1AE8A00&gt;
+
+    def test_model_development_cycle(self):
+        """Test complete model development, training, and evaluation cycle"""
+    
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Step 1: Model Manager Setup
+            manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+            # Step 2: Experiment with different configurations
+            configs = [
+                {
+                    'name': 'small_ring',
+                    'config': RingAttractorConfig(num_excitatory=8, tau=6.0),
+                    'layer_type': 'single'
+                },
+                {
+                    'name': 'large_ring',
+                    'config': RingAttractorConfig(num_excitatory=24, tau=12.0),
+                    'layer_type': 'multi'
+                },
+                {
+                    'name': 'coupled_rings',
+                    'config': RingAttractorConfig(num_excitatory=16, cross_coupling_factor=0.2),
+                    'layer_type': 'coupled'
+                }
+            ]
+    
+            results = []
+    
+            for config in configs:
+                # Create layer config
+                if config['layer_type'] == 'single':
+                    layer_config = {
+                        'layer_type': 'single',
+                        'input_dim': 256,
+                        'output_dim': 1,
+                        'config': config['config']
+                    }
+                elif config['layer_type'] == 'multi':
+                    layer_config = {
+                        'layer_type': 'multi',
+                        'input_dim': 256,
+                        'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+                        'ring_axes': ['roll', 'pitch', 'yaw'],
+                        'config': config['config']
+                    }
+                else:  # coupled
+                    layer_config = {
+                        'layer_type': 'coupled',
+                        'input_dim': 256,
+                        'control_axes': ['x', 'y', 'z', 'thrust'],
+                        'num_rings': 3,
+                        'coupled_axes': ['x', 'y', 'z'],
+                        'config': config['config']
+                    }
+    
+                # Create and train model
+                base_model = MockModel()
+&gt;               ring_model = create_sac_ring_attractor(
+                    base_model=base_model,
+                    layer_config=layer_config,
+                    device='cpu'
+                )
+
+tests\integration\test_end_to_end.py:232: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F533D0&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F53520&gt;, 'input_dim': 256, 'layer_type': 'single', 'output_dim': 1}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: control_axes
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestCompleteWorkflow" name="test_hyperparameter_tuning_workflow" time="0.015"><failure message="AssertionError: No valid configuration found&#10;assert None is not None">self = &lt;tests.integration.test_end_to_end.TestCompleteWorkflow object at 0x000002DBA1AE8BB0&gt;
+
+    def test_hyperparameter_tuning_workflow(self):
+        """Test hyperparameter tuning workflow"""
+    
+        # Define hyperparameter grid
+        tau_values = [6.0, 8.0, 12.0]
+        beta_values = [8.0, 12.0, 16.0]
+        num_excitatory_values = [12, 16, 20]
+    
+        best_performance = -float('inf')
+        best_config = None
+        results = []
+    
+        for tau in tau_values:
+            for beta in beta_values:
+                for num_excitatory in num_excitatory_values:
+                    # Create configuration
+                    config = RingAttractorConfig(
+                        num_excitatory=num_excitatory,
+                        tau=tau,
+                        beta=beta,
+                        trainable_structure=True
+                    )
+    
+                    layer_config = {
+                        'layer_type': 'multi',
+                        'input_dim': 256,
+                        'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+                        'ring_axes': ['roll', 'pitch', 'yaw'],
+                        'config': config
+                    }
+    
+                    # Create and evaluate model
+                    try:
+                        base_model = MockModel()
+                        ring_model = create_sac_ring_attractor(
+                            base_model=base_model,
+                            layer_config=layer_config,
+                            device='cpu'
+                        )
+    
+                        # Quick training
+                        ring_model.learn(total_timesteps=25)
+    
+                        # Quick evaluation
+                        env = MockEnvironment()
+                        rewards = []
+    
+                        for _ in range(3):  # Very short evaluation
+                            obs, _ = env.reset()
+                            episode_reward = 0
+    
+                            for step in range(10):
+                                action, _ = ring_model.predict(obs, deterministic=True)
+                                obs, reward, terminated, truncated, info = env.step(action)
+                                episode_reward += reward
+    
+                                if terminated or truncated:
+                                    break
+    
+                            rewards.append(episode_reward)
+    
+                        mean_reward = np.mean(rewards)
+    
+                        result = {
+                            'tau': tau,
+                            'beta': beta,
+                            'num_excitatory': num_excitatory,
+                            'mean_reward': mean_reward
+                        }
+                        results.append(result)
+    
+                        # Track best configuration
+                        if mean_reward &gt; best_performance:
+                            best_performance = mean_reward
+                            best_config = result.copy()
+    
+                    except Exception as e:
+                        # Log failed configuration
+                        results.append({
+                            'tau': tau,
+                            'beta': beta,
+                            'num_excitatory': num_excitatory,
+                            'mean_reward': -float('inf'),
+                            'error': str(e)
+                        })
+    
+        # Verify tuning found valid configurations
+        assert len(results) == len(tau_values) * len(beta_values) * len(num_excitatory_values)
+&gt;       assert best_config is not None, "No valid configuration found"
+E       AssertionError: No valid configuration found
+E       assert None is not None
+
+tests\integration\test_end_to_end.py:405: AssertionError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestCompleteWorkflow" name="test_multi_algorithm_comparison" time="0.002"><failure message="AttributeError: 'MockModel' object has no attribute 'actor'">self = &lt;tests.integration.test_end_to_end.TestCompleteWorkflow object at 0x000002DBA1AE8C40&gt;
+
+    def test_multi_algorithm_comparison(self):
+        """Test comparison across different algorithms"""
+    
+        algorithms = ['SAC', 'DDPG', 'TD3']  # Mock different algorithms
+    
+        base_layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(num_excitatory=16, tau=8.0, beta=12.0)
+        }
+    
+        algorithm_results = {}
+    
+        for algorithm in algorithms:
+            # Create model (all use same mock model for this test)
+            base_model = MockModel()
+&gt;           ring_model = create_sac_ring_attractor(  # Using SAC wrapper for all
+                base_model=base_model,
+                layer_config=base_layer_config,
+                device='cpu'
+            )
+
+tests\integration\test_end_to_end.py:431: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F508E0&gt;
+model = &lt;tests.integration.test_end_to_end.MockModel object at 0x000002DBA1F50BE0&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F50C40&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_sac_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap SAC policy (stochastic)."""
+        # For SAC, we need to modify both mu and log_std networks
+&gt;       existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+E       AttributeError: 'MockModel' object has no attribute 'actor'
+
+policy_warp.py:136: AttributeError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestComplexScenarios" name="test_curriculum_learning_workflow" time="0.002"><failure message="AttributeError: 'MockModel' object has no attribute 'actor'">self = &lt;tests.integration.test_end_to_end.TestComplexScenarios object at 0x000002DBA1AE8E80&gt;
+
+    def test_curriculum_learning_workflow(self):
+        """Test curriculum learning with increasing difficulty"""
+    
+        # Define curriculum stages
+        curriculum_stages = [
+            {'max_steps': 20, 'difficulty': 'easy'},
+            {'max_steps': 50, 'difficulty': 'medium'},
+            {'max_steps': 100, 'difficulty': 'hard'}
+        ]
+    
+        # Create Ring Attractor model
+        config = RingAttractorConfig(
+            num_excitatory=16,
+            tau=8.0,
+            beta=12.0,
+            trainable_structure=True
+        )
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': config
+        }
+    
+        base_model = MockModel()
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_end_to_end.py:518: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1EFBE20&gt;
+model = &lt;tests.integration.test_end_to_end.MockModel object at 0x000002DBA1EFA620&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1EFBD00&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_sac_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap SAC policy (stochastic)."""
+        # For SAC, we need to modify both mu and log_std networks
+&gt;       existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+E       AttributeError: 'MockModel' object has no attribute 'actor'
+
+policy_warp.py:136: AttributeError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestComplexScenarios" name="test_transfer_learning_scenario" time="0.002"><failure message="AttributeError: 'MockModel' object has no attribute 'actor'">self = &lt;tests.integration.test_end_to_end.TestComplexScenarios object at 0x000002DBA1AE9030&gt;
+
+    def test_transfer_learning_scenario(self):
+        """Test transfer learning between different tasks"""
+    
+        # Task 1: Simple control (2 actions)
+        task1_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['pitch', 'thrust'],
+            'ring_axes': ['pitch'],
+            'config': RingAttractorConfig(num_excitatory=12)
+        }
+    
+        # Train on Task 1
+        base_model1 = MockModel()
+&gt;       ring_model1 = create_sac_ring_attractor(
+            base_model=base_model1,
+            layer_config=task1_config,
+            device='cpu'
+        )
+
+tests\integration\test_end_to_end.py:583: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F528C0&gt;
+model = &lt;tests.integration.test_end_to_end.MockModel object at 0x000002DBA1F50E20&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F52380&gt;, 'control_axes': ['pitch', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_sac_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap SAC policy (stochastic)."""
+        # For SAC, we need to modify both mu and log_std networks
+&gt;       existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+E       AttributeError: 'MockModel' object has no attribute 'actor'
+
+policy_warp.py:136: AttributeError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestRobustnessScenarios" name="test_noisy_environment_robustness" time="0.002"><failure message="AttributeError: 'MockModel' object has no attribute 'actor'">self = &lt;tests.integration.test_end_to_end.TestRobustnessScenarios object at 0x000002DBA1AE9270&gt;
+
+    def test_noisy_environment_robustness(self):
+        """Test model robustness to environmental noise"""
+    
+        # Create Ring Attractor model
+        config = RingAttractorConfig(
+            num_excitatory=16,
+            tau=10.0,  # More stable dynamics
+            beta=8.0,
+            trainable_structure=True
+        )
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': config
+        }
+    
+        base_model = MockModel()
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_end_to_end.py:666: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1EF9CF0&gt;
+model = &lt;tests.integration.test_end_to_end.MockModel object at 0x000002DBA1EFA200&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1EF9960&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_sac_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap SAC policy (stochastic)."""
+        # For SAC, we need to modify both mu and log_std networks
+&gt;       existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+E       AttributeError: 'MockModel' object has no attribute 'actor'
+
+policy_warp.py:136: AttributeError</failure></testcase><testcase classname="tests.integration.test_end_to_end.TestRobustnessScenarios" name="test_extreme_input_robustness" time="0.002"><failure message="ValueError: Missing required key in layer_config: control_axes">self = &lt;tests.integration.test_end_to_end.TestRobustnessScenarios object at 0x000002DBA1AE9420&gt;
+
+    def test_extreme_input_robustness(self):
+        """Test model robustness to extreme inputs"""
+    
+        config = RingAttractorConfig(num_excitatory=16)
+        layer_config = {
+            'layer_type': 'single',
+            'input_dim': 256,
+            'output_dim': 1,
+            'config': config
+        }
+    
+        base_model = MockModel()
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_end_to_end.py:725: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F51450&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F525F0&gt;, 'input_dim': 256, 'layer_type': 'single', 'output_dim': 1}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: control_axes
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestSACRingAttractorIntegration" name="test_create_sac_ring_attractor" time="0.002"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestSACRingAttractorIntegration object at 0x000002DBA1E6A0B0&gt;
+
+    def test_create_sac_ring_attractor(self):
+        base_model = MockSACModel()
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(num_excitatory=16)
+        }
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestSACRingAttractorIntegration" name="test_sac_preset_config" time="0.002"><failure message="ValueError: Missing required key in layer_config: layer_type">self = &lt;tests.integration.test_policy_integration.TestSACRingAttractorIntegration object at 0x000002DBA1E6A260&gt;
+
+    def test_sac_preset_config(self):
+        base_model = MockSACModel()
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            preset_config="quadrotor",
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1AC15A0&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1AC17E0&gt;, 'control_axes': ['roll', 'yaw', 'pitch', 'thrust'], 'coupled_axes': ['roll', 'yaw', 'pitch'], 'ring_axes': ['roll', 'yaw', 'pitch']}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: layer_type
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestSACRingAttractorIntegration" name="test_sac_policy_gradient_flow" time="0.002"><failure message="ValueError: Missing required key in layer_config: control_axes">self = &lt;tests.integration.test_policy_integration.TestSACRingAttractorIntegration object at 0x000002DBA1E6A410&gt;
+
+    def test_sac_policy_gradient_flow(self):
+        base_model = MockSACModel()
+    
+        layer_config = {
+            'layer_type': 'single',
+            'input_dim': 256,
+            'output_dim': 1,
+            'config': RingAttractorConfig(num_excitatory=12)
+        }
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F52470&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F523B0&gt;, 'input_dim': 256, 'layer_type': 'single', 'output_dim': 1}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: control_axes
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestDDPGRingAttractorIntegration" name="test_create_ddpg_ring_attractor" time="0.002"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.integration.test_policy_integration.TestDDPGRingAttractorIntegration object at 0x000002DBA1E6A650&gt;
+
+    def test_create_ddpg_ring_attractor(self):
+        base_model = MockDDPGModel()
+    
+        layer_config = {
+            'layer_type': 'coupled',
+            'input_dim': 256,
+            'control_axes': ['x', 'y', 'z', 'thrust'],
+            'num_rings': 3,
+            'coupled_axes': ['x', 'y', 'z'],
+            'config': RingAttractorConfig(num_excitatory=20)
+        }
+    
+&gt;       ring_model = create_ddpg_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:411: in create_ddpg_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:103: in wrap_policy
+    return self._wrap_deterministic_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F56650&gt;
+model = &lt;tests.integration.test_policy_integration.MockDDPGModel object at 0x000002DBA1F54DC0&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F565C0&gt;, 'control_axes': ['x', 'y', 'z', 'thrust'], 'coupled_axes': ['x', 'y', 'z'], 'input_dim': 256, ...}
+
+    def _wrap_deterministic_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap deterministic policies (DDPG, TD3)."""
+        # Extract existing layers (all except last few)
+        existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+    
+        # Create Ring Attractor layer
+&gt;       ring_layer = create_control_layer(**layer_config)
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+policy_warp.py:117: TypeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestDDPGRingAttractorIntegration" name="test_ddpg_adaptive_layer" time="0.002"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.integration.test_policy_integration.TestDDPGRingAttractorIntegration object at 0x000002DBA1E6A800&gt;
+
+    def test_ddpg_adaptive_layer(self):
+        base_model = MockDDPGModel()
+    
+        layer_config = {
+            'layer_type': 'adaptive',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch'],
+            'ring_axes': ['roll', 'pitch'],
+            'config': RingAttractorConfig(num_excitatory=8),
+            'architecture_type': 'multi'
+        }
+    
+&gt;       ring_model = create_ddpg_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:190: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:411: in create_ddpg_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:103: in wrap_policy
+    return self._wrap_deterministic_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F39D80&gt;
+model = &lt;tests.integration.test_policy_integration.MockDDPGModel object at 0x000002DBA1F39120&gt;
+layer_config = {'architecture_type': 'multi', 'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F39E40&gt;, 'control_axes': ['roll', 'pitch'], 'input_dim': 256, ...}
+
+    def _wrap_deterministic_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap deterministic policies (DDPG, TD3)."""
+        # Extract existing layers (all except last few)
+        existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+    
+        # Create Ring Attractor layer
+&gt;       ring_layer = create_control_layer(**layer_config)
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+policy_warp.py:117: TypeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestPolicyWrapperErrorHandling" name="test_invalid_base_model" time="0.002"><failure message="ValueError: Missing required key in layer_config: control_axes">self = &lt;tests.integration.test_policy_integration.TestPolicyWrapperErrorHandling object at 0x000002DBA1E6AA40&gt;
+
+    def test_invalid_base_model(self):
+        invalid_model = "not_a_model"
+    
+        layer_config = {
+            'layer_type': 'single',
+            'input_dim': 64,
+            'output_dim': 1,
+            'config': RingAttractorConfig()
+        }
+    
+        with pytest.raises((AttributeError, TypeError)):
+&gt;           create_sac_ring_attractor(
+                base_model=invalid_model,
+                layer_config=layer_config
+            )
+
+tests\integration\test_policy_integration.py:219: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1EFB130&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1EFBA00&gt;, 'input_dim': 64, 'layer_type': 'single', 'output_dim': 1}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: control_axes
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestPolicyWrapperErrorHandling" name="test_incompatible_layer_config" time="0.002" /><testcase classname="tests.integration.test_policy_integration.TestPolicyWrapperErrorHandling" name="test_invalid_preset_config" time="0.001" /><testcase classname="tests.integration.test_policy_integration.TestEndToEndWorkflow" name="test_full_training_simulation" time="0.002"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestEndToEndWorkflow object at 0x000002DBA1E6AE90&gt;
+
+    def test_full_training_simulation(self):
+        # Create base model
+        base_model = MockSACModel()
+    
+        # Configure Ring Attractor
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(
+                num_excitatory=16,
+                tau=8.0,
+                beta=12.0,
+                trainable_structure=True
+            )
+        }
+    
+        # Create Ring Attractor model
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:272: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestEndToEndWorkflow" name="test_model_save_load_cycle" time="0.003"><failure message="ValueError: Missing required key in layer_config: control_axes">self = &lt;tests.integration.test_policy_integration.TestEndToEndWorkflow object at 0x000002DBA1E6ACE0&gt;
+
+    def test_model_save_load_cycle(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+            # Create and configure model
+            base_model = MockDDPGModel()
+            layer_config = {
+                'layer_type': 'single',
+                'input_dim': 256,
+                'output_dim': 1,
+                'config': RingAttractorConfig(num_excitatory=12)
+            }
+    
+&gt;           ring_model = create_ddpg_ring_attractor(
+                base_model=base_model,
+                layer_config=layer_config
+            )
+
+tests\integration\test_policy_integration.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:411: in create_ddpg_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:99: in wrap_policy
+    self.validate_layer_config(layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA2247880&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA22448E0&gt;, 'input_dim': 256, 'layer_type': 'single', 'output_dim': 1}
+
+    def validate_layer_config(self, layer_config: Dict[str, Any]) -&gt; None:
+        """Validate the layer configuration."""
+        required_keys = ['layer_type', 'input_dim', 'control_axes']
+        for key in required_keys:
+            if key not in layer_config:
+&gt;               raise ValueError(f"Missing required key in layer_config: {key}")
+E               ValueError: Missing required key in layer_config: control_axes
+
+policy_warp.py:68: ValueError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestPerformanceIntegration" name="test_large_batch_processing" time="0.002"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestPerformanceIntegration object at 0x000002DBA1E6A590&gt;
+
+    def test_large_batch_processing(self):
+        base_model = MockSACModel()
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(num_excitatory=24)
+        }
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:365: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestPerformanceIntegration" name="test_memory_efficiency" time="0.002"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.integration.test_policy_integration.TestPerformanceIntegration object at 0x000002DBA1E69FF0&gt;
+
+    def test_memory_efficiency(self):
+        # Test that models don't leak memory during repeated use
+        base_model = MockDDPGModel()
+    
+        layer_config = {
+            'layer_type': 'coupled',
+            'input_dim': 256,
+            'control_axes': ['x', 'y', 'z'],
+            'num_rings': 3,
+            'coupled_axes': ['x', 'y', 'z'],
+            'config': RingAttractorConfig(num_excitatory=16)
+        }
+    
+&gt;       ring_model = create_ddpg_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:393: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:411: in create_ddpg_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:103: in wrap_policy
+    return self._wrap_deterministic_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1F457B0&gt;
+model = &lt;tests.integration.test_policy_integration.MockDDPGModel object at 0x000002DBA1F47610&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F44A30&gt;, 'control_axes': ['x', 'y', 'z'], 'coupled_axes': ['x', 'y', 'z'], 'input_dim': 256, ...}
+
+    def _wrap_deterministic_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap deterministic policies (DDPG, TD3)."""
+        # Extract existing layers (all except last few)
+        existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+    
+        # Create Ring Attractor layer
+&gt;       ring_layer = create_control_layer(**layer_config)
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+policy_warp.py:117: TypeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestEnvironmentIntegration" name="test_pyflyt_environment_compatibility" time="0.013"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestEnvironmentIntegration object at 0x000002DBA1E6B2E0&gt;
+
+    @pytest.mark.skipif(
+        not pytest.importorskip("PyFlyt", reason="PyFlyt not available"),
+        reason="PyFlyt not installed"
+    )
+    def test_pyflyt_environment_compatibility(self):
+        """Test that Ring Attractor models work with PyFlyt environments"""
+        try:
+            import PyFlyt
+            import PyFlyt.gym_envs
+        except ImportError:
+            pytest.skip("PyFlyt not available")
+    
+        # Create mock environment interface
+        class MockEnv:
+            def __init__(self):
+                self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(64,))
+                self.action_space = gym.spaces.Box(low=-1, high=1, shape=(4,))
+    
+            def step(self, action):
+                obs = np.random.randn(64)
+                reward = 0.0
+                terminated = False
+                truncated = False
+                info = {}
+                return obs, reward, terminated, truncated, info
+    
+            def reset(self):
+                obs = np.random.randn(64)
+                info = {}
+                return obs, info
+    
+        env = MockEnv()
+    
+        # Create Ring Attractor model
+        base_model = MockSACModel()
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 256,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(num_excitatory=16)
+        }
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=base_model,
+            layer_config=layer_config
+        )
+
+tests\integration\test_policy_integration.py:459: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestIntegrationFixtures" name="test_sac_integration_with_fixtures" time="0.002"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestIntegrationFixtures object at 0x000002DBA1E6B520&gt;
+mock_sac_model = &lt;tests.integration.test_policy_integration.MockSACModel object at 0x000002DBA1F7B820&gt;
+sample_ring_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F792D0&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def test_sac_integration_with_fixtures(self, mock_sac_model, sample_ring_config):
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=mock_sac_model,
+            layer_config=sample_ring_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:526: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestIntegrationFixtures" name="test_ddpg_integration_with_fixtures" time="0.002"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.integration.test_policy_integration.TestIntegrationFixtures object at 0x000002DBA1E6B700&gt;
+mock_ddpg_model = &lt;tests.integration.test_policy_integration.MockDDPGModel object at 0x000002DBA1FBD2A0&gt;
+sample_ring_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1FBDBD0&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def test_ddpg_integration_with_fixtures(self, mock_ddpg_model, sample_ring_config):
+&gt;       ring_model = create_ddpg_ring_attractor(
+            base_model=mock_ddpg_model,
+            layer_config=sample_ring_config,
+            device='cpu'
+        )
+
+tests\integration\test_policy_integration.py:539: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:411: in create_ddpg_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:103: in wrap_policy
+    return self._wrap_deterministic_policy(model, layer_config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;policy_warp.StableBaselines3Wrapper object at 0x000002DBA1FBD570&gt;
+model = &lt;tests.integration.test_policy_integration.MockDDPGModel object at 0x000002DBA1FBD2A0&gt;
+layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1FBDBD0&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def _wrap_deterministic_policy(self, model: Any, layer_config: Dict[str, Any]) -&gt; Any:
+        """Wrap deterministic policies (DDPG, TD3)."""
+        # Extract existing layers (all except last few)
+        existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
+    
+        # Create Ring Attractor layer
+&gt;       ring_layer = create_control_layer(**layer_config)
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+policy_warp.py:117: TypeError</failure></testcase><testcase classname="tests.integration.test_policy_integration.TestIntegrationFixtures" name="test_model_manager_integration" time="0.003"><failure message="AttributeError: 'Sequential' object has no attribute 'in_features'">self = &lt;tests.integration.test_policy_integration.TestIntegrationFixtures object at 0x000002DBA1E6B8E0&gt;
+temp_model_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpo3sda0mj'
+mock_sac_model = &lt;tests.integration.test_policy_integration.MockSACModel object at 0x000002DBA1F3B4F0&gt;
+sample_ring_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F38A90&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 256, 'layer_type': 'multi', ...}
+
+    def test_model_manager_integration(self, temp_model_dir, mock_sac_model, sample_ring_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_model_dir)
+    
+&gt;       ring_model = create_sac_ring_attractor(
+            base_model=mock_sac_model,
+            layer_config=sample_ring_config
+        )
+
+tests\integration\test_policy_integration.py:554: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+policy_warp.py:428: in create_sac_ring_attractor
+    return create_ring_attractor_model(
+policy_warp.py:395: in create_ring_attractor_model
+    wrapped_model = wrapper.wrap_policy(base_model, layer_config)
+policy_warp.py:105: in wrap_policy
+    return self._wrap_sac_policy(model, layer_config)
+policy_warp.py:146: in _wrap_sac_policy
+    output_shape = model.actor.mu.in_features
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = Sequential(
+  (0): Linear(in_features=64, out_features=128, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=128, out_features=256, bias=True)
+  (3): ReLU()
+  (4): Linear(in_features=256, out_features=4, bias=True)
+)
+name = 'in_features'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'Sequential' object has no attribute 'in_features'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractorConfig" name="test_config_initialization" time="0.002"><failure message="assert True == False&#10; +  where True = &lt;attractors.RingAttractorConfig object at 0x000002DBA1F47A00&gt;.trainable_structure">self = &lt;tests.unit.test_attractors.TestRingAttractorConfig object at 0x000002DBA1E94F40&gt;
+
+    def test_config_initialization(self):
+        config = RingAttractorConfig()
+        assert config.num_excitatory == 16
+        assert config.tau == 10.0
+        assert config.beta == 10.0
+        assert config.lambda_decay == 0.9
+&gt;       assert config.trainable_structure == False
+E       assert True == False
+E        +  where True = &lt;attractors.RingAttractorConfig object at 0x000002DBA1F47A00&gt;.trainable_structure
+
+tests\unit\test_attractors.py:23: AssertionError</failure></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractorConfig" name="test_config_custom_values" time="0.001" /><testcase classname="tests.unit.test_attractors.TestRingAttractorConfig" name="test_config_to_dict" time="0.001" /><testcase classname="tests.unit.test_attractors.TestRingAttractorConfig" name="test_config_from_dict" time="0.001" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_initialization" time="0.001" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_initialization_with_config" time="0.001"><failure message="TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'">self = &lt;tests.unit.test_attractors.TestRingAttractor object at 0x000002DBA1E95330&gt;
+
+    def test_initialization_with_config(self):
+        config = RingAttractorConfig(num_excitatory=20, tau=8.0, beta=12.0)
+&gt;       ring = RingAttractor(input_dim=64, config=config)
+E       TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'
+
+tests\unit\test_attractors.py:75: TypeError</failure></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_forward_shape" time="0.005" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_forward_different_batch_sizes" time="0.004" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_trainable_structure_false" time="0.008"><failure message="assert not True&#10; +  where True = Parameter containing:\ntensor([[2.5000e-05, 8.2298e-06, 2.7092e-06, 8.9185e-07, 2.9359e-07, 9.6648e-08,\n         3.1816...-08, 3.1816e-08, 9.6648e-08, 2.9359e-07,\n         8.9185e-07, 2.7092e-06, 8.2298e-06, 2.5000e-05]], requires_grad=True).requires_grad&#10; +    where Parameter containing:\ntensor([[2.5000e-05, 8.2298e-06, 2.7092e-06, 8.9185e-07, 2.9359e-07, 9.6648e-08,\n         3.1816...-08, 3.1816e-08, 9.6648e-08, 2.9359e-07,\n         8.9185e-07, 2.7092e-06, 8.2298e-06, 2.5000e-05]], requires_grad=True) = RNN(32, 16, bias=False).weight_hh_l0&#10; +      where RNN(32, 16, bias=False) = RingAttractor(\n  (rnn): RNN(32, 16, bias=False)\n).rnn">self = &lt;tests.unit.test_attractors.TestRingAttractor object at 0x000002DBA1E95840&gt;
+
+    def test_trainable_structure_false(self):
+        ring = RingAttractor(input_dim=32, num_excitatory=16, trainable_structure=False)
+    
+        # Check that weights are frozen
+        assert not ring.rnn.weight_ih_l0.requires_grad
+&gt;       assert not ring.rnn.weight_hh_l0.requires_grad
+E       assert not True
+E        +  where True = Parameter containing:\ntensor([[2.5000e-05, 8.2298e-06, 2.7092e-06, 8.9185e-07, 2.9359e-07, 9.6648e-08,\n         3.1816...-08, 3.1816e-08, 9.6648e-08, 2.9359e-07,\n         8.9185e-07, 2.7092e-06, 8.2298e-06, 2.5000e-05]], requires_grad=True).requires_grad
+E        +    where Parameter containing:\ntensor([[2.5000e-05, 8.2298e-06, 2.7092e-06, 8.9185e-07, 2.9359e-07, 9.6648e-08,\n         3.1816...-08, 3.1816e-08, 9.6648e-08, 2.9359e-07,\n         8.9185e-07, 2.7092e-06, 8.2298e-06, 2.5000e-05]], requires_grad=True) = RNN(32, 16, bias=False).weight_hh_l0
+E        +      where RNN(32, 16, bias=False) = RingAttractor(\n  (rnn): RNN(32, 16, bias=False)\n).rnn
+
+tests\unit\test_attractors.py:105: AssertionError</failure></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_trainable_structure_true" time="0.001" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_circular_connectivity_pattern" time="0.003" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_device_compatibility[cpu]" time="0.002" /><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_device_compatibility[cuda]" time="0.001"><skipped type="pytest.skip" message="CUDA not available">C:\Users\User\Documents\_UNICS\github\Ring_Attractor\tests\unit\test_attractors.py:140: CUDA not available</skipped></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractor" name="test_gradient_flow" time="0.005" /><testcase classname="tests.unit.test_attractors.TestMultiRingAttractor" name="test_initialization" time="0.001"><failure message="AttributeError: 'MultiRingAttractor' object has no attribute 'rings'">self = &lt;tests.unit.test_attractors.TestMultiRingAttractor object at 0x000002DBA1E96620&gt;
+
+    def test_initialization(self):
+        multi_ring = MultiRingAttractor(
+            input_size=24,
+            output_size=16,
+            num_rings=3
+        )
+    
+        assert multi_ring.num_rings == 3
+        assert multi_ring.input_size == 24
+        assert multi_ring.output_size == 16
+&gt;       assert len(multi_ring.rings) == 3
+
+tests\unit\test_attractors.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = MultiRingAttractor(
+  (rnn): RNN(72, 48, bias=False, batch_first=True)
+)
+name = 'rings'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'MultiRingAttractor' object has no attribute 'rings'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.unit.test_attractors.TestMultiRingAttractor" name="test_forward_shape" time="0.002" /><testcase classname="tests.unit.test_attractors.TestMultiRingAttractor" name="test_cross_coupling" time="0.002"><failure message="AssertionError: assert False&#10; +  where False = hasattr(MultiRingAttractor(\n  (rnn): RNN(32, 16, bias=False, batch_first=True)\n), 'cross_coupling')">self = &lt;tests.unit.test_attractors.TestMultiRingAttractor object at 0x000002DBA1E96980&gt;
+
+    def test_cross_coupling(self):
+        multi_ring = MultiRingAttractor(
+            input_size=16,
+            output_size=8,
+            num_rings=2,
+            cross_coupling_factor=0.1
+        )
+    
+        # Test that cross-coupling layers exist
+&gt;       assert hasattr(multi_ring, 'cross_coupling')
+E       AssertionError: assert False
+E        +  where False = hasattr(MultiRingAttractor(\n  (rnn): RNN(32, 16, bias=False, batch_first=True)\n), 'cross_coupling')
+
+tests\unit\test_attractors.py:200: AssertionError</failure></testcase><testcase classname="tests.unit.test_attractors.TestMultiRingAttractor" name="test_different_ring_configurations" time="0.001"><failure message="TypeError: MultiRingAttractor.__init__() got an unexpected keyword argument 'ring_configs'">self = &lt;tests.unit.test_attractors.TestMultiRingAttractor object at 0x000002DBA1E96B30&gt;
+
+    def test_different_ring_configurations(self):
+        configs = [
+            RingAttractorConfig(num_excitatory=12, tau=5.0),
+            RingAttractorConfig(num_excitatory=16, tau=8.0),
+            RingAttractorConfig(num_excitatory=20, tau=10.0)
+        ]
+    
+&gt;       multi_ring = MultiRingAttractor(
+            input_size=24,
+            output_size=16,
+            num_rings=3,
+            ring_configs=configs
+        )
+E       TypeError: MultiRingAttractor.__init__() got an unexpected keyword argument 'ring_configs'
+
+tests\unit\test_attractors.py:210: TypeError</failure></testcase><testcase classname="tests.unit.test_attractors.TestMultiRingAttractor" name="test_gradient_flow_multi_ring" time="0.003"><failure message="AttributeError: 'MultiRingAttractor' object has no attribute 'rings'">self = &lt;tests.unit.test_attractors.TestMultiRingAttractor object at 0x000002DBA1E96CE0&gt;
+
+    def test_gradient_flow_multi_ring(self):
+        multi_ring = MultiRingAttractor(
+            input_size=16,
+            output_size=8,
+            num_rings=2
+        )
+    
+        input_tensor = torch.randn(4, 32, requires_grad=True)  # 16 * 2 rings
+    
+        output = multi_ring(input_tensor)
+        loss = output.sum()
+        loss.backward()
+    
+        assert input_tensor.grad is not None
+        # Check that all rings receive gradients
+&gt;       for ring in multi_ring.rings:
+
+tests\unit\test_attractors.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = MultiRingAttractor(
+  (rnn): RNN(32, 16, bias=False, batch_first=True)
+)
+name = 'rings'
+
+    def __getattr__(self, name: str) -&gt; Any:
+        if "_parameters" in self.__dict__:
+            _parameters = self.__dict__["_parameters"]
+            if name in _parameters:
+                return _parameters[name]
+        if "_buffers" in self.__dict__:
+            _buffers = self.__dict__["_buffers"]
+            if name in _buffers:
+                return _buffers[name]
+        if "_modules" in self.__dict__:
+            modules = self.__dict__["_modules"]
+            if name in modules:
+                return modules[name]
+&gt;       raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+E       AttributeError: 'MultiRingAttractor' object has no attribute 'rings'
+
+..\..\..\..\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\torch\nn\modules\module.py:1931: AttributeError</failure></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractorMathematicalProperties" name="test_tau_affects_temporal_dynamics" time="0.003" /><testcase classname="tests.unit.test_attractors.TestRingAttractorMathematicalProperties" name="test_beta_affects_output_magnitude" time="0.002" /><testcase classname="tests.unit.test_attractors.TestRingAttractorMathematicalProperties" name="test_circular_symmetry_property" time="0.003" /><testcase classname="tests.unit.test_attractors.TestRingAttractorIntegration" name="test_end_to_end_processing" time="0.001"><error message="failed on setup with &quot;TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'&quot;">sample_config = &lt;attractors.RingAttractorConfig object at 0x000002DBA2247B50&gt;
+
+    @pytest.fixture
+    def ring_attractor(sample_config):
+&gt;       return RingAttractor(input_dim=64, config=sample_config)
+E       TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'
+
+tests\unit\test_attractors.py:317: TypeError</error></testcase><testcase classname="tests.unit.test_attractors.TestRingAttractorIntegration" name="test_batch_consistency" time="0.001"><error message="failed on setup with &quot;TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'&quot;">sample_config = &lt;attractors.RingAttractorConfig object at 0x000002DBA1F55CF0&gt;
+
+    @pytest.fixture
+    def ring_attractor(sample_config):
+&gt;       return RingAttractor(input_dim=64, config=sample_config)
+E       TypeError: RingAttractor.__init__() got an unexpected keyword argument 'config'
+
+tests\unit\test_attractors.py:317: TypeError</error></testcase><testcase classname="tests.unit.test_control_layers.TestSingleAxisRingAttractorLayer" name="test_initialization" time="0.002"><failure message="AssertionError: assert False&#10; +  where False = hasattr(SingleAxisRingAttractorLayer(\n  (input_transform): Linear(in_features=64, out_features=64, bias=True)\n  (activation): ...Attractor(\n    (rnn): RNN(64, 16, bias=False)\n  )\n  (output_layer): Linear(in_features=16, out_features=1, bias=True)\n), 'output_projection')">self = &lt;tests.unit.test_control_layers.TestSingleAxisRingAttractorLayer object at 0x000002DBA1E97C10&gt;
+
+    def test_initialization(self):
+        config = RingAttractorConfig(num_excitatory=16)
+        layer = SingleAxisRingAttractorLayer(
+            input_dim=64,
+            output_dim=1,
+            config=config
+        )
+    
+        assert layer.input_dim == 64
+        assert layer.output_dim == 1
+        assert hasattr(layer, 'ring_attractor')
+&gt;       assert hasattr(layer, 'output_projection')
+E       AssertionError: assert False
+E        +  where False = hasattr(SingleAxisRingAttractorLayer(\n  (input_transform): Linear(in_features=64, out_features=64, bias=True)\n  (activation): ...Attractor(\n    (rnn): RNN(64, 16, bias=False)\n  )\n  (output_layer): Linear(in_features=16, out_features=1, bias=True)\n), 'output_projection')
+
+tests\unit\test_control_layers.py:34: AssertionError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestSingleAxisRingAttractorLayer" name="test_forward_shape" time="0.003" /><testcase classname="tests.unit.test_control_layers.TestSingleAxisRingAttractorLayer" name="test_gradient_flow" time="0.003" /><testcase classname="tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer" name="test_initialization" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer object at 0x000002DBA1EC41F0&gt;
+
+    def test_initialization(self):
+        config = RingAttractorConfig(num_excitatory=16)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=128,
+            control_axes=['roll', 'pitch', 'yaw', 'thrust'],
+            ring_axes=['roll', 'pitch', 'yaw'],
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:74: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer" name="test_forward_shape" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer object at 0x000002DBA1EC43A0&gt;
+
+    def test_forward_shape(self):
+        config = RingAttractorConfig(num_excitatory=12)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=64,
+            control_axes=['x', 'y', 'z', 'thrust'],
+            ring_axes=['x', 'y', 'z'],
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:89: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer" name="test_ring_vs_non_ring_axes" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer object at 0x000002DBA1EC4550&gt;
+
+    def test_ring_vs_non_ring_axes(self):
+        config = RingAttractorConfig(num_excitatory=8)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=32,
+            control_axes=['roll', 'pitch', 'thrust'],
+            ring_axes=['roll', 'pitch'],  # Only 2 use ring attractors
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:105: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer" name="test_all_ring_axes" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer object at 0x000002DBA1EC4700&gt;
+
+    def test_all_ring_axes(self):
+        config = RingAttractorConfig(num_excitatory=16)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=64,
+            control_axes=['roll', 'pitch', 'yaw'],
+            ring_axes=['roll', 'pitch', 'yaw'],  # All axes use rings
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:122: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer" name="test_no_ring_axes" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestMultiAxisRingAttractorLayer object at 0x000002DBA1EC48B0&gt;
+
+    def test_no_ring_axes(self):
+        config = RingAttractorConfig(num_excitatory=16)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=64,
+            control_axes=['thrust', 'power'],
+            ring_axes=[],  # No ring attractors
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:135: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCoupledRingAttractorLayer" name="test_initialization" time="0.001"><failure message="TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestCoupledRingAttractorLayer object at 0x000002DBA1EC4B20&gt;
+
+    def test_initialization(self):
+        config = RingAttractorConfig(num_excitatory=12)
+&gt;       layer = CoupledRingAttractorLayer(
+            input_dim=128,
+            control_axes=['x', 'y', 'z', 'thrust'],
+            num_rings=3,
+            coupled_axes=['x', 'y', 'z'],
+            config=config
+        )
+E       TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:155: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCoupledRingAttractorLayer" name="test_forward_shape" time="0.001"><failure message="TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestCoupledRingAttractorLayer object at 0x000002DBA1E95A20&gt;
+
+    def test_forward_shape(self):
+        config = RingAttractorConfig(num_excitatory=16)
+&gt;       layer = CoupledRingAttractorLayer(
+            input_dim=64,
+            control_axes=['roll', 'pitch', 'yaw'],
+            num_rings=3,
+            coupled_axes=['roll', 'pitch', 'yaw'],
+            config=config
+        )
+E       TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:170: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCoupledRingAttractorLayer" name="test_mixed_coupled_uncoupled_axes" time="0.001"><failure message="TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestCoupledRingAttractorLayer object at 0x000002DBA1EC40D0&gt;
+
+    def test_mixed_coupled_uncoupled_axes(self):
+        config = RingAttractorConfig(num_excitatory=10)
+&gt;       layer = CoupledRingAttractorLayer(
+            input_dim=96,
+            control_axes=['x', 'y', 'z', 'thrust', 'power'],
+            num_rings=2,
+            coupled_axes=['x', 'y'],  # Only x, y coupled
+            config=config
+        )
+E       TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:187: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCreateControlLayer" name="test_create_single_layer" time="0.001"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'control_axes'">self = &lt;tests.unit.test_control_layers.TestCreateControlLayer object at 0x000002DBA1EC44C0&gt;
+
+    def test_create_single_layer(self):
+        config = RingAttractorConfig(num_excitatory=16)
+    
+&gt;       layer = create_control_layer(
+            layer_type='single',
+            input_dim=64,
+            output_dim=1,
+            config=config
+        )
+E       TypeError: create_control_layer() missing 1 required positional argument: 'control_axes'
+
+tests\unit\test_control_layers.py:210: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCreateControlLayer" name="test_create_multi_layer" time="0.001"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestCreateControlLayer object at 0x000002DBA1EC4BB0&gt;
+
+    def test_create_multi_layer(self):
+        config = RingAttractorConfig(num_excitatory=12)
+    
+&gt;       layer = create_control_layer(
+            layer_type='multi',
+            input_dim=128,
+            control_axes=['roll', 'pitch', 'yaw', 'thrust'],
+            ring_axes=['roll', 'pitch', 'yaw'],
+            config=config
+        )
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:224: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCreateControlLayer" name="test_create_coupled_layer" time="0.001"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestCreateControlLayer object at 0x000002DBA1EC4D60&gt;
+
+    def test_create_coupled_layer(self):
+        config = RingAttractorConfig(num_excitatory=20)
+    
+&gt;       layer = create_control_layer(
+            layer_type='coupled',
+            input_dim=96,
+            control_axes=['x', 'y', 'z'],
+            num_rings=3,
+            coupled_axes=['x', 'y', 'z'],
+            config=config
+        )
+E       TypeError: create_control_layer() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:238: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestCreateControlLayer" name="test_invalid_layer_type" time="0.001"><failure message="TypeError: create_control_layer() missing 2 required positional arguments: 'output_dim' and 'control_axes'">self = &lt;tests.unit.test_control_layers.TestCreateControlLayer object at 0x000002DBA1EC4F10&gt;
+
+    def test_invalid_layer_type(self):
+        config = RingAttractorConfig()
+    
+        with pytest.raises(ValueError, match="Unknown layer_type"):
+&gt;           create_control_layer(
+                layer_type='invalid_type',
+                input_dim=64,
+                config=config
+            )
+E           TypeError: create_control_layer() missing 2 required positional arguments: 'output_dim' and 'control_axes'
+
+tests\unit\test_control_layers.py:254: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestControlLayerMathematicalProperties" name="test_output_range_single_axis" time="0.003" /><testcase classname="tests.unit.test_control_layers.TestControlLayerMathematicalProperties" name="test_multi_axis_independence" time="0.001"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestControlLayerMathematicalProperties object at 0x000002DBA1EC5300&gt;
+
+    def test_multi_axis_independence(self):
+        config = RingAttractorConfig(num_excitatory=8)
+&gt;       layer = MultiAxisRingAttractorLayer(
+            input_dim=32,
+            control_axes=['axis1', 'axis2', 'axis3'],
+            ring_axes=['axis1', 'axis2'],  # axis3 is linear
+            config=config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:283: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestControlLayerMathematicalProperties" name="test_coupling_effects" time="0.001"><failure message="TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestControlLayerMathematicalProperties object at 0x000002DBA1EC54B0&gt;
+
+    def test_coupling_effects(self):
+        config = RingAttractorConfig(
+            num_excitatory=12,
+            cross_coupling_factor=0.1
+        )
+    
+&gt;       layer = CoupledRingAttractorLayer(
+            input_dim=48,
+            control_axes=['x', 'y'],
+            num_rings=2,
+            coupled_axes=['x', 'y'],
+            config=config
+        )
+E       TypeError: CoupledRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:309: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestControlLayerConsistency" name="test_single_vs_multi_axis_equivalence" time="0.002"><failure message="TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'">self = &lt;tests.unit.test_control_layers.TestControlLayerConsistency object at 0x000002DBA1EC57E0&gt;
+common_config = &lt;attractors.RingAttractorConfig object at 0x000002DBA2339090&gt;
+common_input = tensor([[-1.6287e+00,  9.2488e-01, -7.8169e-02, -7.8586e-01, -5.2969e-01,
+          3.8038e-01, -5.8321e-02, -1.3925e-...+00,  5.0989e-01,  8.4911e-01,  1.4719e-01,  9.5674e-01,
+          2.4941e-01,  4.3313e-01,  1.4774e+00,  1.0097e+00]])
+
+    def test_single_vs_multi_axis_equivalence(self, common_config, common_input):
+        # Single axis layer
+        single_layer = SingleAxisRingAttractorLayer(
+            input_dim=64,
+            output_dim=1,
+            config=common_config
+        )
+    
+        # Multi axis layer with one axis
+&gt;       multi_layer = MultiAxisRingAttractorLayer(
+            input_dim=64,
+            control_axes=['single_axis'],
+            ring_axes=['single_axis'],
+            config=common_config
+        )
+E       TypeError: MultiAxisRingAttractorLayer.__init__() missing 1 required positional argument: 'output_dim'
+
+tests\unit\test_control_layers.py:345: TypeError</failure></testcase><testcase classname="tests.unit.test_control_layers.TestControlLayerConsistency" name="test_layer_parameter_consistency" time="0.001"><failure message="TypeError: create_control_layer() missing 1 required positional argument: 'control_axes'">self = &lt;tests.unit.test_control_layers.TestControlLayerConsistency object at 0x000002DBA1EC5990&gt;
+common_config = &lt;attractors.RingAttractorConfig object at 0x000002DBA1F43730&gt;
+
+    def test_layer_parameter_consistency(self, common_config):
+        layers = [
+&gt;           create_control_layer('single', input_dim=64, output_dim=1, config=common_config),
+            create_control_layer('multi', input_dim=64, control_axes=['axis1'],
+                               ring_axes=['axis1'], config=common_config),
+        ]
+E       TypeError: create_control_layer() missing 1 required positional argument: 'control_axes'
+
+tests\unit\test_control_layers.py:362: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_initialization" time="0.002" /><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_initialization_creates_directory" time="0.002" /><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_save_model_full" time="0.008"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC5090&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpxqtsb0zu'
+sample_model = &lt;MagicMock id='3142338245728'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA228AF20&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_save_model_full(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="test_model",
+            framework="stable_baselines3",
+            algorithm="DDPG",
+            layer_config=sample_layer_config,
+            metadata={"test": "data"}
+        )
+
+tests\unit\test_model_manager.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA2289F30&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA228AF20&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_save_model_policy_only" time="0.005"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC4670&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpgvg69qv4'
+sample_model = &lt;MagicMock id='3142338447248'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA233B6A0&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_save_model_policy_only(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="policy_model",
+            framework="stable_baselines3",
+            algorithm="SAC",
+            layer_config=sample_layer_config,
+            save_policy_only=True
+        )
+
+tests\unit\test_model_manager.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA23381F0&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA233B6A0&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_save_model_config_serialization" time="0.005"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC6CB0&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmp2w27u9w_'
+sample_model = &lt;MagicMock id='3142338308864'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA231BD90&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_save_model_config_serialization(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+        metadata = {
+            "training_steps": 100000,
+            "performance": {"mean_reward": 450.2},
+            "hyperparameters": {"learning_rate": 3e-4}
+        }
+    
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="config_test",
+            framework="stable_baselines3",
+            algorithm="DDPG",
+            layer_config=sample_layer_config,
+            metadata=metadata
+        )
+
+tests\unit\test_model_manager.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA231BE50&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA231BD90&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_load_model_with_factory" time="0.005"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC6E90&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpcj2mzwt8'
+sample_model = &lt;MagicMock id='3142343012608'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA1F43D90&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_load_model_with_factory(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+        # First save a model
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="load_test",
+            framework="stable_baselines3",
+            algorithm="DDPG",
+            layer_config=sample_layer_config
+        )
+
+tests\unit\test_model_manager.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA1F432E0&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA1F43D90&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_load_nonexistent_model" time="0.002" /><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_list_models" time="0.006"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC71F0&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpfpnl_h91'
+sample_model = &lt;MagicMock id='3142342380224'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA23AF280&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_list_models(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+        # Save multiple models
+        for i, algorithm in enumerate(["DDPG", "SAC", "TD3"]):
+&gt;           manager.save_model(
+                model=sample_model,
+                model_name=f"model_{i}",
+                framework="stable_baselines3",
+                algorithm=algorithm,
+                layer_config=sample_layer_config
+            )
+
+tests\unit\test_model_manager.py:182: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA23ADB70&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA23AF280&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_delete_model" time="0.004"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC73D0&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpp3f_voqw'
+sample_model = &lt;MagicMock id='3142341390256'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA22D3C10&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_delete_model(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+        # Save a model
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="delete_test",
+            framework="stable_baselines3",
+            algorithm="DDPG",
+            layer_config=sample_layer_config
+        )
+
+tests\unit\test_model_manager.py:202: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA22D1030&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA22D3C10&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestRingAttractorModelManager" name="test_get_model_info" time="0.005"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestRingAttractorModelManager object at 0x000002DBA1EC75B0&gt;
+temp_dir = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpu9akqb49'
+sample_model = &lt;MagicMock id='3142337713040'&gt;
+sample_layer_config = {'config': &lt;attractors.RingAttractorConfig object at 0x000002DBA232F460&gt;, 'control_axes': ['roll', 'pitch', 'yaw', 'thrust'], 'input_dim': 128, 'layer_type': 'multi', ...}
+
+    def test_get_model_info(self, temp_dir, sample_model, sample_layer_config):
+        manager = RingAttractorModelManager(base_save_dir=temp_dir)
+    
+        metadata = {"training_steps": 50000, "mean_reward": 123.45}
+    
+&gt;       manager.save_model(
+            model=sample_model,
+            model_name="info_test",
+            framework="stable_baselines3",
+            algorithm="SAC",
+            layer_config=sample_layer_config,
+            metadata=metadata
+        )
+
+tests\unit\test_model_manager.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA232F130&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA232F460&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_initialization" time="0.001"><failure message="AttributeError: 'ModelRegistry' object has no attribute 'factories'. Did you mean: '_factories'?">self = &lt;tests.unit.test_model_manager.TestModelRegistry object at 0x000002DBA1EC7820&gt;
+
+    def test_initialization(self):
+        registry = ModelRegistry()
+&gt;       assert len(registry.factories) == 0
+E       AttributeError: 'ModelRegistry' object has no attribute 'factories'. Did you mean: '_factories'?
+
+tests\unit\test_model_manager.py:246: AttributeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_register_factory" time="0.001"><failure message="AttributeError: 'ModelRegistry' object has no attribute 'factories'. Did you mean: '_factories'?">self = &lt;tests.unit.test_model_manager.TestModelRegistry object at 0x000002DBA1EC79D0&gt;
+
+    def test_register_factory(self):
+        registry = ModelRegistry()
+    
+        def sample_factory():
+            return "test_model"
+    
+        registry.register_factory(
+            name="test_factory",
+            factory_fn=sample_factory,
+            description="Test factory"
+        )
+    
+&gt;       assert "test_factory" in registry.factories
+E       AttributeError: 'ModelRegistry' object has no attribute 'factories'. Did you mean: '_factories'?
+
+tests\unit\test_model_manager.py:260: AttributeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_get_factory" time="0.001" /><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_get_nonexistent_factory" time="0.001" /><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_list_factories" time="0.001"><failure message="TypeError: string indices must be integers">self = &lt;tests.unit.test_model_manager.TestModelRegistry object at 0x000002DBA1EC7EE0&gt;
+
+    def test_list_factories(self):
+        registry = ModelRegistry()
+    
+        registry.register_factory("factory1", lambda: "model1", "First factory")
+        registry.register_factory("factory2", lambda: "model2", "Second factory")
+    
+        factories = registry.list_factories()
+    
+        assert len(factories) == 2
+        assert "factory1" in factories
+        assert "factory2" in factories
+&gt;       assert factories["factory1"]["description"] == "First factory"
+E       TypeError: string indices must be integers
+
+tests\unit\test_model_manager.py:292: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelRegistry" name="test_register_duplicate_factory" time="0.002"><failure message="Failed: DID NOT WARN. No warnings of type (&lt;class 'UserWarning'&gt;,) were emitted.&#10; Emitted warnings: [].">self = &lt;tests.unit.test_model_manager.TestModelRegistry object at 0x000002DBA1EE80D0&gt;
+
+    def test_register_duplicate_factory(self):
+        registry = ModelRegistry()
+    
+        registry.register_factory("duplicate", lambda: "model1")
+    
+&gt;       with pytest.warns(UserWarning, match="Factory 'duplicate' already exists"):
+E       Failed: DID NOT WARN. No warnings of type (&lt;class 'UserWarning'&gt;,) were emitted.
+E        Emitted warnings: [].
+
+tests\unit\test_model_manager.py:299: Failed</failure></testcase><testcase classname="tests.unit.test_model_manager.TestStandaloneFunctions" name="test_save_ring_attractor_model" time="0.003"><failure message="TypeError: save_ring_attractor_model() missing 1 required positional argument: 'model_name'">self = &lt;tests.unit.test_model_manager.TestStandaloneFunctions object at 0x000002DBA1EE83D0&gt;
+temp_file = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpc2m2cqgf.json'
+
+    def test_save_ring_attractor_model(self, temp_file):
+        model = MagicMock()
+        model.save = MagicMock()
+    
+        config = RingAttractorConfig(num_excitatory=12, tau=6.0)
+        layer_config = {
+            'layer_type': 'single',
+            'input_dim': 64,
+            'output_dim': 1,
+            'config': config
+        }
+    
+&gt;       save_ring_attractor_model(
+            model=model,
+            filepath=temp_file,
+            layer_config=layer_config,
+            framework="stable_baselines3",
+            algorithm="DDPG"
+        )
+E       TypeError: save_ring_attractor_model() missing 1 required positional argument: 'model_name'
+
+tests\unit\test_model_manager.py:330: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestStandaloneFunctions" name="test_load_ring_attractor_model" time="0.003"><failure message="TypeError: load_ring_attractor_model() missing 1 required positional argument: 'factory_name'">self = &lt;tests.unit.test_model_manager.TestStandaloneFunctions object at 0x000002DBA1EE8580&gt;
+temp_file = 'C:\\Users\\User\\AppData\\Local\\Temp\\tmpvz0ne42y.json'
+
+    def test_load_ring_attractor_model(self, temp_file):
+        # Create test data
+        config_data = {
+            'framework': "stable_baselines3",
+            'algorithm': "SAC",
+            'layer_config': {
+                'layer_type': 'multi',
+                'input_dim': 128,
+                'control_axes': ['roll', 'pitch'],
+                'config': RingAttractorConfig(num_excitatory=16).to_dict()
+            }
+        }
+    
+        with open(temp_file, 'w') as f:
+            json.dump(config_data, f, default=str)
+    
+&gt;       loaded_config = load_ring_attractor_model(temp_file)
+E       TypeError: load_ring_attractor_model() missing 1 required positional argument: 'factory_name'
+
+tests\unit\test_model_manager.py:364: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelManagerErrorHandling" name="test_save_model_invalid_model" time="0.010" /><testcase classname="tests.unit.test_model_manager.TestModelManagerErrorHandling" name="test_save_model_permission_error" time="0.005"><failure message="Failed: DID NOT RAISE &lt;class 'PermissionError'&gt;">self = &lt;tests.unit.test_model_manager.TestModelManagerErrorHandling object at 0x000002DBA1EC7FD0&gt;
+tmp_path = WindowsPath('C:/Users/User/AppData/Local/Temp/pytest-of-User/pytest-7/test_save_model_permission_err0')
+
+    def test_save_model_permission_error(self, tmp_path):
+        manager = RingAttractorModelManager(base_save_dir=tmp_path)
+        model = MagicMock()
+    
+        # Mock os.makedirs to raise PermissionError
+        with patch('os.makedirs', side_effect=PermissionError("Permission denied")):
+&gt;           with pytest.raises(PermissionError):
+E           Failed: DID NOT RAISE &lt;class 'PermissionError'&gt;
+
+tests\unit\test_model_manager.py:392: Failed</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelManagerErrorHandling" name="test_load_model_corrupted_config" time="0.005" /><testcase classname="tests.unit.test_model_manager.TestModelManagerIntegration" name="test_full_save_load_cycle" time="0.005"><failure message="TypeError: Object of type RingAttractorConfig is not JSON serializable">self = &lt;tests.unit.test_model_manager.TestModelManagerIntegration object at 0x000002DBA1EC4CA0&gt;
+tmp_path = WindowsPath('C:/Users/User/AppData/Local/Temp/pytest-of-User/pytest-7/test_full_save_load_cycle0')
+
+    def test_full_save_load_cycle(self, tmp_path):
+        manager = RingAttractorModelManager(base_save_dir=tmp_path)
+    
+        # Create mock model with realistic attributes
+        model = MagicMock()
+        model.save = MagicMock()
+        model.policy.state_dict = MagicMock(return_value={
+            'features_extractor.weight': torch.randn(64, 32),
+            'mlp.0.weight': torch.randn(128, 64)
+        })
+    
+        layer_config = {
+            'layer_type': 'multi',
+            'input_dim': 128,
+            'control_axes': ['roll', 'pitch', 'yaw', 'thrust'],
+            'ring_axes': ['roll', 'pitch', 'yaw'],
+            'config': RingAttractorConfig(
+                num_excitatory=20,
+                tau=10.0,
+                beta=8.0,
+                trainable_structure=True
+            )
+        }
+    
+        metadata = {
+            'training_steps': 200000,
+            'environment': 'PyFlyt/QuadX-Hover-v2',
+            'performance': {
+                'mean_reward': 567.8,
+                'std_reward': 23.4,
+                'success_rate': 0.87
+            }
+        }
+    
+        # Save model
+&gt;       manager.save_model(
+            model=model,
+            model_name="integration_test",
+            framework="stable_baselines3",
+            algorithm="SAC",
+            layer_config=layer_config,
+            metadata=metadata,
+            save_policy_only=True
+        )
+
+tests\unit\test_model_manager.py:457: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+model_manager.py:77: in save_model
+    json.dump(config, f, indent=2)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\__init__.py:179: in dump
+    for chunk in iterable:
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:431: in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:405: in _iterencode_dict
+    yield from chunks
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:438: in _iterencode
+    o = _default(o)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;json.encoder.JSONEncoder object at 0x000002DBA26DC700&gt;
+o = &lt;attractors.RingAttractorConfig object at 0x000002DBA26DDBD0&gt;
+
+    def default(self, o):
+        """Implement this method in a subclass such that it returns
+        a serializable object for ``o``, or calls the base implementation
+        (to raise a ``TypeError``).
+    
+        For example, to support arbitrary iterators, you could
+        implement default like this::
+    
+            def default(self, o):
+                try:
+                    iterable = iter(o)
+                except TypeError:
+                    pass
+                else:
+                    return list(iterable)
+                # Let the base class default method raise the TypeError
+                return JSONEncoder.default(self, o)
+    
+        """
+&gt;       raise TypeError(f'Object of type {o.__class__.__name__} '
+                        f'is not JSON serializable')
+E       TypeError: Object of type RingAttractorConfig is not JSON serializable
+
+C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\json\encoder.py:179: TypeError</failure></testcase><testcase classname="tests.unit.test_model_manager.TestModelManagerIntegration" name="test_multiple_models_management" time="0.009"><failure message="TypeError: string indices must be integers">self = &lt;tests.unit.test_model_manager.TestModelManagerIntegration object at 0x000002DBA1EE8220&gt;
+tmp_path = WindowsPath('C:/Users/User/AppData/Local/Temp/pytest-of-User/pytest-7/test_multiple_models_managemen0')
+
+    def test_multiple_models_management(self, tmp_path):
+        manager = RingAttractorModelManager(base_save_dir=tmp_path)
+    
+        # Create and save multiple models
+        configs = [
+            ("model_ddpg", "DDPG", {'layer_type': 'single'}),
+            ("model_sac", "SAC", {'layer_type': 'multi'}),
+            ("model_td3", "TD3", {'layer_type': 'coupled'})
+        ]
+    
+        for name, algorithm, layer_config in configs:
+            model = MagicMock()
+            model.save = MagicMock()
+    
+            manager.save_model(
+                model=model,
+                model_name=name,
+                framework="stable_baselines3",
+                algorithm=algorithm,
+                layer_config=layer_config
+            )
+    
+        # List all models
+        models = manager.list_models()
+        assert len(models) == 3
+    
+&gt;       model_names = {model['name'] for model in models}
+
+tests\unit\test_model_manager.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = &lt;list_iterator object at 0x000002DBA1F43520&gt;
+
+&gt;   model_names = {model['name'] for model in models}
+E   TypeError: string indices must be integers
+
+tests\unit\test_model_manager.py:520: TypeError</failure></testcase></testsuite></testsuites>

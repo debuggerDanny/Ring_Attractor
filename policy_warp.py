@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Callable, Union
 from copy import deepcopy
 import logging
 
-from  src.utils.control_layers import (
+from  control_layers import (
     BaseControlLayer, 
     create_control_layer, 
     RingAttractorConfig,
@@ -219,6 +219,7 @@ class StableBaselines3Wrapper(PolicyWrapper):
 
 class TorchRLWrapper(PolicyWrapper):
     """
+    DO NOT USE
     Wrapper for TorchRL algorithms.
     
     This wrapper provides integration with TorchRL's modular RL framework.
