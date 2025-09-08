@@ -12,13 +12,11 @@ from typing import Any, Dict, List, Optional, Callable, Union
 from copy import deepcopy
 import logging
 
-from layers.control_layers import (
+from  src.utils.control_layers import (
     BaseControlLayer, 
     create_control_layer, 
     RingAttractorConfig,
-    get_quadrotor_config,
-    get_drone_navigation_config,
-    get_robotic_arm_config
+    get_quadrotor_config
 )
 
 logger = logging.getLogger(__name__)
@@ -137,6 +135,23 @@ class StableBaselines3Wrapper(PolicyWrapper):
         # For SAC, we need to modify both mu and log_std networks
         existing_layers = self.extract_policy_layers(model.actor.mu)[:-2]
         
+        # we need the output of the ring layer to be the same 
+        # as the input of the mu layer
+        
+        # Check if layer_config exists and is mutable
+        print("Before modification:")
+        print(f"layer_config type: {type(layer_config)}")
+        print(f"layer_config: {layer_config}")
+
+        output_shape = model.actor.mu.in_features
+        print(f"output_shape: {output_shape}")
+
+        layer_config["output_dim"] = output_shape
+
+        print("After modification:")
+        print(f"layer_config: {layer_config}")
+        print(f"'output_dim' in layer_config: {'output_dim' in layer_config}")
+
         # Create Ring Attractor layer
         ring_layer = create_control_layer(**layer_config)
         
@@ -145,8 +160,11 @@ class StableBaselines3Wrapper(PolicyWrapper):
             # Modify shared latent network
             existing_latent_layers = list(model.actor.latent_pi.children())[:-2]
             model.actor.latent_pi = nn.Sequential(*existing_latent_layers, ring_layer)
+
+            # TODO: make the output of ring be the same size as the mu layer
         else:
             # Modify mu network directly
+            logger.info("Modified the MU layerr instead of the latent_pi")
             model.actor.mu = nn.Sequential(*existing_layers, ring_layer)
         
         model.actor = model.actor.to(model.device)
@@ -354,8 +372,8 @@ def create_ring_attractor_model(
     if preset_config:
         preset_configs = {
             'quadrotor': get_quadrotor_config(),
-            'drone': get_drone_navigation_config(),
-            'arm': get_robotic_arm_config()
+            # 'drone': get_drone_navigation_config(),
+            # 'arm': get_robotic_arm_config()
         }
         if preset_config not in preset_configs:
             raise ValueError(f"Unknown preset config: {preset_config}")
@@ -374,7 +392,8 @@ def create_ring_attractor_model(
     
     # Wrap the model
     wrapped_model = wrapper.wrap_policy(base_model, layer_config)
-    wrapped_model = wrapped_model.to(device)
+    # print(wrapped_model)
+    # wrapped_model = wrapped_model.to(device)
     
     logger.info(f"Created Ring Attractor model for {framework}/{algorithm} on {device}")
     return wrapped_model

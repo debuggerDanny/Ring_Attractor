@@ -5,12 +5,12 @@ This script shows the easiest way to integrate Ring Attractor structures
 with SAC for PyFlyt quadcopter waypoint navigation using the policy wrapper system.
 """
 
-import gymnasium as gym
+import gymnasium 
 import numpy as np
 from stable_baselines3 import SAC
-from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3.common.callbacks import EvalCallback
+
 import PyFlyt.gym_envs
+from PyFlyt.gym_envs import FlattenWaypointEnv #needed for waypoints
 import logging
 
 # Setup logging
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Import Ring Attractor components
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from src.utils.policy_warp import create_sac_ring_attractor
@@ -30,8 +30,8 @@ except ImportError:
     logger.warning("Ring Attractor components not available. Using standard SAC.")
     RING_ATTRACTOR_AVAILABLE = False
 
-
-def create_pyflyt_environment(env_id: str = "PyFlyt/QuadX-Waypoints-v3"):
+RENDER_MODE = "human"
+def create_pyflyt_environment(env_id: str = "PyFlyt/QuadX-Waypoints-v4"):
     """
     Create PyFlyt quadcopter waypoint environment.
     
@@ -41,27 +41,19 @@ def create_pyflyt_environment(env_id: str = "PyFlyt/QuadX-Waypoints-v3"):
     Returns:
         PyFlyt environment
     """
-    try:
-        env = gym.make(
-            env_id,
-            sparse_reward=False,
-            num_targets=4,
-            use_yaw_targets=True,
-            goal_reach_distance=0.3,
-            goal_reach_angle=0.2,
-            flight_dome_size=6.0,
-            max_duration_seconds=15.0,
-            angle_representation="quaternion",
-            agent_hz=30
-        )
-        logger.info(f"Created environment: {env_id}")
-        return env
-    except Exception as e:
-        logger.error(f"Failed to create {env_id}: {e}")
-        # Fallback to hover environment
-        env = gym.make("PyFlyt/QuadX-Waypoints-v3")
-        logger.info("Fallback to QuadX-Waypoints-v3")
-        return env
+    env = gymnasium.make(
+        env_id,
+        sparse_reward=False,
+        num_targets=4,
+        goal_reach_distance=0.3,
+        max_duration_seconds=15.0,
+        flight_mode = 1, 
+        angle_representation="quaternion",
+        render_mode = RENDER_MODE,
+    )
+    env = FlattenWaypointEnv(env, context_length=2)
+    logger.info(f"Created environment: {env_id}")
+    return env
 
 
 def train_baseline_sac():
@@ -127,7 +119,6 @@ def train_ring_attractor_sac():
         "MlpPolicy",
         env,
         learning_rate=3e-4,
-        batch_size=256,
         policy_kwargs=dict(net_arch=[256, 256]),
         verbose=1,
         tensorboard_log="./tensorboard_logs/ring_attractor_sac"
@@ -137,7 +128,7 @@ def train_ring_attractor_sac():
     ring_config = {
         'layer_type': 'multi',
         'input_dim': 256,  # Should match the last layer of the MLP
-        'control_axes': ['thrust', 'roll_rate', 'pitch_rate', 'yaw_rate'],
+        'control_axes': ['roll_rate', 'pitch_rate', 'yaw_rate',"thrust"],
         'ring_axes': ['roll_rate', 'pitch_rate', 'yaw_rate'],  # Spatial axes
         'config': RingAttractorConfig(
             num_excitatory=16,
@@ -235,19 +226,15 @@ def demonstrate_ring_attractor_integration():
     
     # Step 1: Create standard SAC
     logger.info("Step 1: Creating standard SAC model")
-    base_sac = SAC(
-        "MlpPolicy", 
-        env, 
-        verbose=1,
-        policy_kwargs=dict(net_arch=[128, 128])  # Smaller network for demo
-    )
+    base_sac = SAC("MlpPolicy", env,verbose=1, policy_kwargs=dict(net_arch=[128, 128]))
+    
     
     # Step 2: Define Ring Attractor configuration
     logger.info("Step 2: Configuring Ring Attractor for quadcopter control")
     quadcopter_ring_config = {
         'layer_type': 'multi',
         'input_dim': 128,
-        'control_axes': ['thrust', 'roll', 'pitch', 'yaw'],
+        'control_axes': [ 'roll', 'pitch', 'yaw', 'thrust'],
         'ring_axes': ['roll', 'pitch', 'yaw'],  # Use rings for spatial control
         'config': RingAttractorConfig(
             num_excitatory=12,      # Compact for demo

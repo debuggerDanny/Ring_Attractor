@@ -10,7 +10,7 @@ import torch.nn as nn
 from typing import List, Optional
 import logging
 
-from attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
+from src.utils.attractors import RingAttractor, MultiRingAttractor, RingAttractorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -93,11 +93,11 @@ class MultiAxisRingAttractorLayer(BaseControlLayer):
     def __init__(
         self, 
         input_dim: int,
+        output_dim: int,
         control_axes: List[str],
         config: Optional[RingAttractorConfig] = None,
         ring_axes: Optional[List[str]] = None
     ):
-        output_dim = len(control_axes)
         super(MultiAxisRingAttractorLayer, self).__init__(input_dim, output_dim)
         
         if config is None:
@@ -136,6 +136,10 @@ class MultiAxisRingAttractorLayer(BaseControlLayer):
         for axis in self.linear_axes:
             self.linear_layers[axis] = nn.Linear(self.linear_split_size, 1)
         
+        # Final linear layer to combine outputs and match output_dim
+        intermediate_dim = len(self.ring_axes) + len(self.linear_axes)
+        self.final_linear = nn.Linear(intermediate_dim, output_dim)
+        
         logger.info(f"Initialized MultiAxisRingAttractorLayer: "
                    f"ring_axes={self.ring_axes}, linear_axes={self.linear_axes}")
     
@@ -165,7 +169,10 @@ class MultiAxisRingAttractorLayer(BaseControlLayer):
         
         # Combine all outputs
         combined_output = torch.cat(outputs, dim=1)
-        return self.activation(combined_output)
+        
+        # Pass through final linear layer to get desired output dimension
+        final_output = self.final_linear(combined_output)
+        return self.activation(final_output)
 
 
 class CoupledRingAttractorLayer(BaseControlLayer):
@@ -186,12 +193,12 @@ class CoupledRingAttractorLayer(BaseControlLayer):
     def __init__(
         self, 
         input_dim: int,
+        output_dim: int,
         control_axes: List[str],
         num_rings: int = 3,
         config: Optional[RingAttractorConfig] = None,
         coupled_axes: Optional[List[str]] = None
     ):
-        output_dim = len(control_axes)
         super(CoupledRingAttractorLayer, self).__init__(input_dim, output_dim)
         
         if config is None:
@@ -281,106 +288,11 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         return self.activation(combined_output)
 
 
-class AdaptiveRingAttractorLayer(BaseControlLayer):
-    """
-    DONT USE YET 
-    CLAUDE SUGGESTION FOR FUTURE CLASS
-
-    Adaptive Ring Attractor layer that can switch between different architectures.
-    
-    This layer can dynamically choose between single-axis, multi-axis, or coupled
-    ring configurations based on the task requirements.
-    
-    Args:
-        input_dim (int): Input feature dimension
-        control_axes (List[str]): Names of control axes
-        architecture_type (str): Type of architecture ('single', 'multi', 'coupled')
-        config (RingAttractorConfig): Ring attractor configuration
-        **kwargs: Additional arguments specific to the chosen architecture
-    """
-    
-    def __init__(
-        self,
-        input_dim: int,
-        control_axes: List[str],
-        architecture_type: str = 'multi',
-        config: Optional[RingAttractorConfig] = None,
-        **kwargs
-    ):
-        output_dim = len(control_axes)
-        super(AdaptiveRingAttractorLayer, self).__init__(input_dim, output_dim)
-        
-        if config is None:
-            config = RingAttractorConfig()
-        
-        self.architecture_type = architecture_type
-        self.control_axes = control_axes
-        
-        # Create the appropriate architecture
-        if architecture_type == 'single':
-            self.control_layer = SingleAxisRingAttractorLayer(
-                input_dim, output_dim, config
-            )
-        elif architecture_type == 'multi':
-            self.control_layer = MultiAxisRingAttractorLayer(
-                input_dim, control_axes, config, **kwargs
-            )
-        elif architecture_type == 'coupled':
-            self.control_layer = CoupledRingAttractorLayer(
-                input_dim, control_axes, config=config, **kwargs
-            )
-        else:
-            raise ValueError(f"Unknown architecture type: {architecture_type}")
-        
-        logger.info(f"Initialized AdaptiveRingAttractorLayer with '{architecture_type}' architecture")
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass through the selected architecture."""
-        return self.control_layer(x)
-    
-    def switch_architecture(
-        self, 
-        new_architecture_type: str, 
-        config: Optional[RingAttractorConfig] = None,
-        **kwargs
-    ) -> None:
-        """
-        Switch to a different architecture type.
-        
-        Args:
-            new_architecture_type (str): New architecture type
-            config (RingAttractorConfig): Configuration for new architecture
-            **kwargs: Additional arguments for new architecture
-        """
-        if new_architecture_type == self.architecture_type:
-            logger.info(f"Already using '{new_architecture_type}' architecture")
-            return
-        
-        logger.info(f"Switching from '{self.architecture_type}' to '{new_architecture_type}' architecture")
-        
-        # Create new architecture
-        if new_architecture_type == 'single':
-            self.control_layer = SingleAxisRingAttractorLayer(
-                self.input_dim, self.output_dim, config
-            )
-        elif new_architecture_type == 'multi':
-            self.control_layer = MultiAxisRingAttractorLayer(
-                self.input_dim, self.control_axes, config, **kwargs
-            )
-        elif new_architecture_type == 'coupled':
-            self.control_layer = CoupledRingAttractorLayer(
-                self.input_dim, self.control_axes, config=config, **kwargs
-            )
-        else:
-            raise ValueError(f"Unknown architecture type: {new_architecture_type}")
-        
-        self.architecture_type = new_architecture_type
-
-
 # Factory functions for easy instantiation
 def create_control_layer(
     layer_type: str,
     input_dim: int,
+    output_dim:int, 
     control_axes: List[str],
     config: Optional[RingAttractorConfig] = None,
     **kwargs
@@ -399,13 +311,11 @@ def create_control_layer(
         BaseControlLayer: The created control layer
     """
     if layer_type == 'single':
-        return SingleAxisRingAttractorLayer(input_dim, len(control_axes), config)
+        return SingleAxisRingAttractorLayer(input_dim, output_dim, len(control_axes), config)
     elif layer_type == 'multi':
-        return MultiAxisRingAttractorLayer(input_dim, control_axes, config, **kwargs)
+        return MultiAxisRingAttractorLayer(input_dim, output_dim, control_axes, config, **kwargs)
     elif layer_type == 'coupled':
-        return CoupledRingAttractorLayer(input_dim, control_axes, config=config, **kwargs)
-    elif layer_type == 'adaptive':
-        return AdaptiveRingAttractorLayer(input_dim, control_axes, config=config, **kwargs)
+        return CoupledRingAttractorLayer(input_dim, output_dim, control_axes, config=config, **kwargs)
     else:
         raise ValueError(f"Unknown layer type: {layer_type}")
 
@@ -425,31 +335,3 @@ def get_quadrotor_config() -> dict:
         )
     }
 
-
-def get_drone_navigation_config() -> dict:
-    """Configuration for drone navigation control."""
-    return {
-        'control_axes': ['forward', 'right', 'up', 'yaw'],
-        'ring_axes': ['forward', 'right', 'yaw'],
-        'coupled_axes': ['forward', 'right', 'yaw'],
-        'config': RingAttractorConfig(
-            num_excitatory=20,
-            tau=8.0,
-            beta=12.0,
-            cross_coupling_factor=0.15
-        )
-    }
-
-
-def get_robotic_arm_config() -> dict:
-    """Configuration for robotic arm control."""
-    return {
-        'control_axes': ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'gripper'],
-        'ring_axes': ['joint1', 'joint2', 'joint3', 'joint4', 'joint5'],
-        'config': RingAttractorConfig(
-            num_excitatory=12,
-            tau=15.0,
-            beta=8.0,
-            trainable_structure=True
-        )
-    }
