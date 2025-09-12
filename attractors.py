@@ -132,8 +132,18 @@ class RingAttractor(nn.Module):
         # Scale input by learnable temporal integration constant τ
         x_scaled = (1.0 / self.tau) * x
         
+        # Ensure input has sequence dimension for RNN
+        # RNN expects (seq_len, batch, input_size)
+        if x_scaled.dim() == 2:
+            # Add sequence dimension of length 1
+            x_scaled = x_scaled.unsqueeze(0)  # Shape: (1, batch, input_size)
+        
         # Apply RNN dynamics (ring attractor)
         ring_output, _ = self.rnn(x_scaled)
+        
+        # Remove sequence dimension if we added it
+        if ring_output.size(0) == 1:
+            ring_output = ring_output.squeeze(0)  # Shape: (batch, num_excitatory)
         
         # Apply scaling factor β
         return self.beta * ring_output
