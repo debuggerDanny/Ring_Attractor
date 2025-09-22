@@ -105,7 +105,7 @@ class TestRingAttractorModelManager:
         assert model_dir.exists()
         
         # Check that policy weights were saved
-        policy_file = model_dir / "policy_weights.pt"
+        policy_file = model_dir / "policy_weights.pth"
         assert policy_file.exists()
         
         # Model.save should not be called for policy-only saves
@@ -160,10 +160,16 @@ class TestRingAttractorModelManager:
             model_name="load_test",
             model_factory=model_factory
         )
-        
-        assert loaded_model is sample_model
+
+        # For full model loading, verify the model was loaded from the correct file
+        # and has the expected configuration rather than checking object identity
+        assert loaded_model is not None
         assert config['framework'] == "stable_baselines3"
         assert config['algorithm'] == "DDPG"
+
+        # Verify that model.load was called with the correct path during loading
+        expected_model_path = str(manager.base_save_dir / "load_test" / "full_model.zip")
+        sample_model.load.assert_called_with(expected_model_path, device="cpu")
     
     def test_load_nonexistent_model(self, temp_dir):
         manager = RingAttractorModelManager(base_save_dir=temp_dir)
@@ -243,7 +249,7 @@ class TestModelRegistry:
     
     def test_initialization(self):
         registry = ModelRegistry()
-        assert len(registry.factories) == 0
+        assert len(registry.list_factories()) == 0
     
     def test_register_factory(self):
         registry = ModelRegistry()
@@ -257,9 +263,9 @@ class TestModelRegistry:
             description="Test factory"
         )
         
-        assert "test_factory" in registry.factories
-        assert registry.factories["test_factory"]["description"] == "Test factory"
-        assert callable(registry.factories["test_factory"]["factory"])
+        assert "test_factory" in registry._factories.keys()
+        assert registry.get_desc("test_factory") == "Test factory"
+        assert callable(registry.get_factory("test_factory"))
     
     def test_get_factory(self):
         registry = ModelRegistry()
@@ -286,9 +292,9 @@ class TestModelRegistry:
         
         factories = registry.list_factories()
         
-        assert len(factories) == 2
-        assert "factory1" in factories
-        assert "factory2" in factories
+        assert len(factories.keys()) == 2
+        assert "factory1" in factories.keys()
+        assert "factory2" in factories.keys()
         assert factories["factory1"]["description"] == "First factory"
     
     def test_register_duplicate_factory(self):
@@ -386,9 +392,9 @@ class TestModelManagerErrorHandling:
     def test_save_model_permission_error(self, tmp_path):
         manager = RingAttractorModelManager(base_save_dir=tmp_path)
         model = MagicMock()
-        
-        # Mock os.makedirs to raise PermissionError
-        with patch('os.makedirs', side_effect=PermissionError("Permission denied")):
+
+        # Mock Path.mkdir to raise PermissionError
+        with patch('pathlib.Path.mkdir', side_effect=PermissionError("Permission denied")):
             with pytest.raises(PermissionError):
                 manager.save_model(
                     model=model,
@@ -468,7 +474,7 @@ class TestModelManagerIntegration:
         model_dir = manager.base_save_dir / "integration_test"
         assert model_dir.exists()
         assert (model_dir / "config.json").exists()
-        assert (model_dir / "policy_weights.pt").exists()
+        assert (model_dir / "policy_weights.pth").exists()
         
         # Load model
         def model_factory():

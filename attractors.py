@@ -202,6 +202,9 @@ class MultiRingAttractor(nn.Module):
         total_output_size = ring_size * num_rings
         self.rnn = nn.RNN(total_input_size, total_output_size, bias=False, batch_first=True)
         
+        print(f"the input size is {input_size} and the output dim is {output_dim} ")
+
+
         # Create connectivity matrices
         if not trainable_structure:
             self._initialize_multi_ring_connectivity()
@@ -321,8 +324,18 @@ class MultiRingAttractor(nn.Module):
         # Scale input by learnable temporal integration constant
         x_scaled = (1.0 / self.tau) * x
         
+        # RNN expects (batch, seq_len, input_size) when batch_first=True
+        # Since we're processing single timestep, ensure correct dimensions
+        if x_scaled.dim() == 2:
+            # Input is (batch, input_size), add sequence dimension
+            x_scaled = x_scaled.unsqueeze(1)  # Shape: (batch, 1, input_size)
+        
         # Apply RNN dynamics (multi-ring attractor)
         ring_output, _ = self.rnn(x_scaled)
+        
+        # Remove sequence dimension if we added it
+        if ring_output.size(1) == 1:
+            ring_output = ring_output.squeeze(1)  # Shape: (batch, total_output_size)
         
         # Apply scaling
         scaled_output = self.beta * ring_output

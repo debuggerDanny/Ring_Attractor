@@ -104,7 +104,7 @@ class MultiAxisRingAttractorLayer(BaseControlLayer):
             config = RingAttractorConfig()
         
         self.control_axes = control_axes
-        self.ring_axes = ring_axes or control_axes[:-1]  # Default: all but last axis (usually the thrust)
+        self.ring_axes = ring_axes # Default: all but last axis (usually the thrust)
         self.linear_axes = [axis for axis in control_axes if axis not in self.ring_axes]
         
         # Calculate split sizes
@@ -210,10 +210,11 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         self.linear_axes = [axis for axis in control_axes if axis not in self.coupled_axes]
         
         # Calculate input splits
+        # TODO: need to get rid of this all the different parts get all the context info
         num_coupled_axes = len(self.coupled_axes)
         if num_coupled_axes > 0:
             self.coupled_input_size = input_dim * 3 // 4  # 3/4 for coupled rings
-            self.linear_input_size = input_dim - self.coupled_input_size
+            self.linear_input_size = input_dim 
         else:
             self.coupled_input_size = 0
             self.linear_input_size = input_dim
@@ -221,8 +222,9 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         # Create multi-ring attractor for coupled axes
         if self.coupled_axes:
             self.multi_ring_attractor = MultiRingAttractor(
-                input_size=self.coupled_input_size // num_rings,
-                output_size=config.num_excitatory,
+                input_size = input_dim,
+                output_dim= num_rings, #dont knwo if this is right
+                ring_size=config.num_excitatory,
                 num_rings=num_rings,
                 trainable_structure=config.trainable_structure,
                 connectivity_strength=config.connectivity_strength,
@@ -234,7 +236,7 @@ class CoupledRingAttractorLayer(BaseControlLayer):
             
             # Output layer for multi-ring
             self.coupled_output_layer = nn.Linear(
-                config.num_excitatory * num_rings, 
+                num_rings,  # MultiRingAttractor outputs num_rings features
                 len(self.coupled_axes)
             )
         
@@ -242,6 +244,10 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         self.linear_layers = nn.ModuleDict()
         for axis in self.linear_axes:
             self.linear_layers[axis] = nn.Linear(self.linear_input_size, 1)
+        
+        # Final output layer
+        final_input_dim = len(self.coupled_axes) + len(self.linear_axes)
+        self.final_layer = nn.Linear(final_input_dim, output_dim)
         
         logger.info(f"Initialized CoupledRingAttractorLayer: "
                    f"coupled_axes={self.coupled_axes}, linear_axes={self.linear_axes}")
@@ -254,16 +260,12 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         
         # Process coupled ring attractor axes
         if self.coupled_axes:
-            # Split input for coupled vs linear processing
-            coupled_input, linear_input = torch.split(
-                x_transformed, 
-                [self.coupled_input_size, self.linear_input_size], 
-                dim=-1
-            )
-            
-            # Repeat coupled input for multi-ring processing
+            # Giving both the control axis and linear the entire cotnext
+            coupled_input = x_transformed
+            linear_input = x_transformed
+
             coupled_input_repeated = coupled_input.repeat(1, self.num_rings)
-            
+
             # Process through multi-ring attractor
             multi_ring_output = self.multi_ring_attractor(coupled_input_repeated)
             coupled_output = self.coupled_output_layer(multi_ring_output)
@@ -273,6 +275,26 @@ class CoupledRingAttractorLayer(BaseControlLayer):
             for axis in self.linear_axes:
                 linear_output = self.linear_layers[axis](linear_input)
                 outputs.append(linear_output)
+
+            # # Split input for coupled vs linear processing
+            # coupled_input, linear_input = torch.split(
+            #     x_transformed, 
+            #     [self.coupled_input_size, self.linear_input_size], 
+            #     dim=-1
+            # )
+            
+            # # Repeat coupled input for multi-ring processing
+            # coupled_input_repeated = coupled_input.repeat(1, self.num_rings)
+            
+            # # Process through multi-ring attractor
+            # multi_ring_output = self.multi_ring_attractor(coupled_input_repeated)
+            # coupled_output = self.coupled_output_layer(multi_ring_output)
+            # outputs.append(coupled_output)
+            
+            # Process linear axes
+            # for axis in self.linear_axes:
+            #     linear_output = self.linear_layers[axis](linear_input)
+            #     outputs.append(linear_output)
         else:
             # Only linear processing
             for axis in self.linear_axes:
@@ -285,7 +307,10 @@ class CoupledRingAttractorLayer(BaseControlLayer):
         else:
             combined_output = torch.cat(outputs, dim=1)
         
-        return self.activation(combined_output)
+        # Pass through final layer
+        final_output = self.final_layer(combined_output)
+        
+        return self.activation(final_output)
 
 
 # Factory functions for easy instantiation
@@ -311,7 +336,7 @@ def create_control_layer(
         BaseControlLayer: The created control layer
     """
     if layer_type == 'single':
-        return SingleAxisRingAttractorLayer(input_dim, output_dim, len(control_axes), config)
+        return SingleAxisRingAttractorLayer(input_dim, output_dim,  config)
     elif layer_type == 'multi':
         return MultiAxisRingAttractorLayer(input_dim, output_dim, control_axes, config, **kwargs)
     elif layer_type == 'coupled':

@@ -12,8 +12,29 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Callable, Union
 from collections import OrderedDict
 import logging
+import warnings
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize_config(obj):
+    """
+    Recursively serialize configuration objects for JSON storage.
+
+    Args:
+        obj: Object to serialize
+
+    Returns:
+        JSON-serializable version of the object
+    """
+    if hasattr(obj, 'to_dict'):
+        return obj.to_dict()
+    elif isinstance(obj, dict):
+        return {key: _serialize_config(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_config(item) for item in obj]
+    else:
+        return obj
 
 
 class RingAttractorModelManager:
@@ -71,10 +92,13 @@ class RingAttractorModelManager:
             'model_name': model_name,
             'save_policy_only': save_policy_only
         }
-        
+
+        # Serialize config to handle RingAttractorConfig objects
+        serialized_config = _serialize_config(config)
+
         config_path = model_dir / 'config.json'
         with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+            json.dump(serialized_config, f, indent=2)
         
         # Save model weights
         if framework == 'stable_baselines3':
@@ -323,6 +347,10 @@ class ModelRegistry:
             factory_fn: Function that creates a model
             description: Optional description
         """
+
+        if name in self._factories:
+            warnings.warn(f"Factory '{name}' already exists", UserWarning)
+
         self._factories[name] = {
             'factory': factory_fn,
             'description': description
@@ -335,6 +363,13 @@ class ModelRegistry:
         
         return self._factories[name]['factory']
     
+    def get_desc(self, name: str) -> Callable[[], Any]:
+        """Get a registered factory function."""
+        if name not in self._factories:
+            raise KeyError(f"Factory '{name}' not registered. Available: {list(self._factories.keys())}")
+        
+        return self._factories[name]['description']
+
     def list_factories(self) -> Dict[str, str]:
         """List all registered factories with their descriptions."""
         return {
@@ -357,15 +392,13 @@ model_registry = ModelRegistry()
 
 def register_ring_attractor_factories():
     """Register standard Ring Attractor model factories."""
-    from ..utils.control_layers import (
+    from control_layers import (
         SingleAxisRingAttractorLayer, 
         MultiAxisRingAttractorLayer,
         CoupledRingAttractorLayer,
-        AdaptiveRingAttractorLayer,
         get_quadrotor_config,
-        get_drone_navigation_config
     )
-    from ..utils.attractors import RingAttractorConfig
+    from  attractors import RingAttractorConfig
     
     # Single-axis control factory
     def create_single_axis_model():
@@ -415,22 +448,7 @@ def register_ring_attractor_factories():
         'Coupled Ring Attractor for integrated quadrotor control'
     )
     
-    # Navigation control factory
-    def create_navigation_model():
-        nav_config = get_drone_navigation_config()
-        return AdaptiveRingAttractorLayer(
-            input_dim=64,
-            control_axes=nav_config['control_axes'],
-            architecture_type='coupled',
-            config=nav_config['config'],
-            coupled_axes=nav_config['coupled_axes']
-        )
     
-    model_registry.register_factory(
-        'navigation_control',
-        create_navigation_model,
-        'Adaptive Ring Attractor for drone navigation'
-    )
 
 
 def create_ddpg_factory(
@@ -453,8 +471,8 @@ def create_ddpg_factory(
         try:
             from stable_baselines3 import DDPG
             from stable_baselines3.common.policies import BasePolicy
-            from ..utils.control_layers import create_control_layer, get_quadrotor_config
-            
+            from control_layers import create_control_layer, get_quadrotor_config
+            from attractors import RingAttractorConfig
             # Select configuration based on environment
             if env_name == 'quadrotor':
                 config_dict = get_quadrotor_config()
@@ -514,7 +532,7 @@ def register_rl_factories():
     """Register reinforcement learning model factories."""
     
     # DDPG with different Ring Attractor configurations
-    for layer_type in ['single', 'multi', 'coupled', 'adaptive']:
+    for layer_type in ['single', 'multi', 'coupled']:
         factory_name = f'ddpg_{layer_type}_ring'
         factory_fn = create_ddpg_factory(layer_type=layer_type)
         
@@ -571,6 +589,9 @@ def save_ring_attractor_model(
     Returns:
         Path to saved model
     """
+    from control_layers import get_quadrotor_config
+
+
     manager = get_model_manager(save_dir)
     
     if layer_config is None:
